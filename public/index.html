@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Расписание досок</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
+
+:root{
+  --ink:#0F2E2C;
+  --paper:#EFF4F2;
+  --panel:#FFFFFF;
+  --line:#D3DEDB;
+  --teal:#146B65;
+  --tealDeep:#0B4744;
+  --buoy:#E2703A;
+  --buoySoft:#F6D9C9;
+  --free:#CFE8D8;
+  --freeLine:#9DC9AE;
+  --warn:#D64545;
+  --muted:#6E8480;
+  --font-display:'Space Grotesk',sans-serif;
+  --font-body:'Inter',sans-serif;
+  --font-mono:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased;
+}
+#app{max-width:1200px;margin:0 auto;padding:14px 14px 40px;}
+
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;margin-bottom:14px;flex-wrap:wrap;
+}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-mark{
+  width:34px;height:34px;border-radius:8px;
+  background:var(--tealDeep);position:relative;overflow:hidden;flex:none;
+}
+.brand-mark::after{
+  content:"";position:absolute;left:-4px;right:-4px;bottom:6px;height:10px;
+  background:var(--teal);
+  border-radius:0 0 8px 8px;
+  opacity:.6;
+}
+.brand-mark::before{
+  content:"";position:absolute;left:8px;top:6px;width:5px;height:22px;border-radius:3px;
+  background:var(--buoy);
+}
+h1{
+  font-family:var(--font-display);font-weight:700;font-size:19px;margin:0;letter-spacing:-0.01em;
+}
+.sub{font-size:12px;color:var(--muted);margin-top:1px;}
+
+.btn{
+  border:none;border-radius:9px;padding:9px 14px;font-family:var(--font-body);
+  font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  transition:transform .1s ease, box-shadow .15s ease;
+}
+.btn:active{transform:scale(.97);}
+.btn-primary{background:var(--buoy);color:#fff;box-shadow:0 3px 0 #B8531F;}
+.btn-primary:active{box-shadow:0 1px 0 #B8531F;}
+.btn-ghost{background:var(--panel);color:var(--tealDeep);border:1px solid var(--line);}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+
+.nav{
+  display:flex;align-items:center;gap:8px;background:var(--panel);
+  border:1px solid var(--line);border-radius:10px;padding:6px 8px;margin-bottom:12px;
+}
+.nav button{
+  background:none;border:none;cursor:pointer;color:var(--tealDeep);font-size:16px;
+  width:28px;height:28px;border-radius:6px;
+}
+.nav button:hover{background:var(--paper);}
+.nav .range{font-family:var(--font-mono);font-size:12.5px;color:var(--ink);flex:1;text-align:center;}
+.nav .today{font-size:11.5px;color:var(--teal);font-weight:600;cursor:pointer;border:1px solid var(--freeLine);border-radius:6px;padding:4px 8px;background:#fff;}
+
+.board{
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+}
+.scrollwrap{overflow-x:auto;}
+.grid{position:relative;min-width:100%;}
+
+.daylabels{display:flex;position:sticky;top:0;background:var(--panel);z-index:3;border-bottom:1px solid var(--line);}
+.rowlabel-spacer{width:118px;flex:none;border-right:1px solid var(--line);background:var(--panel);position:sticky;left:0;z-index:4;}
+.daycol{
+  flex:none;text-align:center;padding:8px 0 7px;font-family:var(--font-mono);font-size:11px;
+  color:var(--muted);border-right:1px dashed var(--line);
+}
+.daycol.today{color:var(--buoy);font-weight:700;}
+.daycol b{display:block;color:var(--ink);font-family:var(--font-body);font-weight:600;font-size:12.5px;}
+.daycol.today b{color:var(--buoy);}
+
+.row{display:flex;border-bottom:1px solid var(--line);}
+.row:last-child{border-bottom:none;}
+.rowlabel{
+  width:118px;flex:none;padding:14px 10px;border-right:1px solid var(--line);
+  background:var(--panel);position:sticky;left:0;z-index:2;
+  display:flex;flex-direction:column;gap:4px;
+}
+.rowlabel .name{font-weight:600;font-size:13px;}
+.rowlabel .price{font-size:11px;color:var(--muted);font-family:var(--font-mono);}
+.rowlabel .del{font-size:10.5px;color:var(--warn);cursor:pointer;text-decoration:underline;width:fit-content;}
+
+.timeline{position:relative;height:64px;flex:1 1 auto;
+  background-image:
+    repeating-linear-gradient(to right, transparent, transparent calc(var(--dayw) - 1px), var(--line) calc(var(--dayw) - 1px), var(--line) var(--dayw)),
+    repeating-linear-gradient(to right,
+      rgba(15,46,44,.05) 0,
+      rgba(15,46,44,.05) calc(var(--dayw) * 6 / 24),
+      transparent calc(var(--dayw) * 6 / 24),
+      transparent calc(var(--dayw) * 18 / 24),
+      rgba(15,46,44,.05) calc(var(--dayw) * 18 / 24),
+      rgba(15,46,44,.05) var(--dayw)
+    );
+}
+.noon-tick{position:absolute;top:0;bottom:0;width:1px;background:var(--line);opacity:.5;}
+.nowline{position:absolute;top:0;bottom:0;width:2px;background:var(--buoy);z-index:5;}
+.nowline::after{
+  content:"";position:absolute;top:-1px;left:-3px;width:8px;height:8px;border-radius:50%;background:var(--buoy);
+}
+
+.bar{
+  position:absolute;top:9px;height:46px;border-radius:8px;
+  background:linear-gradient(180deg,var(--teal),var(--tealDeep));
+  color:#fff;font-size:11px;padding:5px 8px;cursor:pointer;overflow:hidden;
+  box-shadow:0 2px 4px rgba(11,71,68,.25);
+  border:1px solid rgba(255,255,255,.15);
+}
+.bar.conflict{background:linear-gradient(180deg,#E06A6A,var(--warn));}
+.bar .client{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bar .times{font-family:var(--font-mono);font-size:10px;opacity:.85;display:block;white-space:nowrap;overflow:hidden;}
+
+.legend{display:flex;gap:16px;align-items:center;padding:10px 12px;font-size:11.5px;color:var(--muted);flex-wrap:wrap;}
+.legend span{display:inline-flex;align-items:center;gap:5px;}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block;}
+
+.empty-state{padding:40px 20px;text-align:center;color:var(--muted);font-size:13.5px;}
+
+/* modal */
+.overlay{
+  position:fixed;inset:0;background:rgba(15,46,44,.45);display:flex;align-items:flex-end;
+  justify-content:center;z-index:50;backdrop-filter:blur(2px);
+}
+@media(min-width:640px){.overlay{align-items:center;}}
+.modal{
+  background:#fff;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;
+  animation:up .18s ease;
+}
+@media(min-width:640px){.modal{border-radius:16px;}}
+@keyframes up{from{transform:translateY(16px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.modal h2{font-family:var(--font-display);font-size:16px;margin:0 0 14px;}
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;}
+.field input,.field select{
+  width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;
+  font-family:var(--font-body);background:var(--paper);
+}
+.field-row{display:flex;gap:8px;}
+.field-row .field{flex:1;}
+.conflict-warn{
+  background:var(--buoySoft);border:1px solid var(--buoy);color:#8A3C15;font-size:12px;
+  padding:8px 10px;border-radius:8px;margin-bottom:12px;
+}
+.modal-actions{display:flex;gap:8px;margin-top:16px;}
+.modal-actions .btn{flex:1;justify-content:center;}
+.close-x{position:absolute;top:14px;right:16px;background:none;border:none;font-size:18px;color:var(--muted);cursor:pointer;}
+.modal{position:relative;}
+
+.detail-row{font-size:13px;margin-bottom:6px;color:var(--ink);}
+.detail-row b{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;display:block;margin-bottom:1px;}
+
+.addboard-inline{display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--line);}
+.addboard-inline input{flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px;}
+
+.hourrow{display:flex;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:37px;z-index:3;}
+.hourday{flex:none;position:relative;height:18px;}
+.hourtick-label{
+  position:absolute;top:2px;font-size:9px;color:var(--muted);font-family:var(--font-mono);
+  transform:translateX(-50%);
+}
+.hourtick-label.major{color:var(--ink);font-weight:700;font-size:9.5px;}
+.hour-tick{position:absolute;top:0;bottom:0;width:1px;background:var(--line);opacity:.5;}
+.hour-tick.minor{opacity:.2;}
+
+.fin-cards{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+.fin-card{flex:1;min-width:110px;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px;}
+.fin-card .lbl{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;}
+.fin-card .val{font-family:var(--font-display);font-size:19px;font-weight:700;margin-top:2px;}
+.fin-card.profit .val{color:var(--teal);}
+.fin-card.expense .val{color:var(--warn);}
+
+.fin-section-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin:16px 0 8px;}
+.fin-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.fin-table td,.fin-table th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left;}
+.fin-table th{color:var(--muted);font-weight:600;font-size:11px;}
+.fin-del{color:var(--warn);cursor:pointer;font-size:11px;text-decoration:underline;}
+
+.expense-form{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.expense-form input{padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;}
+.expense-form input[type=text]{flex:2;min-width:120px;}
+.expense-form input[type=number]{flex:1;min-width:80px;}
+.expense-form input[type=date]{flex:1;min-width:120px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const STORAGE_KEY = 'sup_boards_v1';
+const BOOKINGS_KEY = 'sup_bookings_v1';
+const DAY_MS = 86400000;
+const PX_PER_DAY = 260; // width per day column
+
+let boards = [];
+let bookings = [];
+let windowStart = startOfDay(new Date());
+let visibleDays = 7;
+let editingBooking = null;
+
+function startOfDay(d){ const x = new Date(d); x.setHours(0,0,0,0); return x; }
+function fmtDate(d){ return d.toLocaleDateString('ru-RU',{day:'2-digit',month:'short'}); }
+function fmtWeekday(d){ return d.toLocaleDateString('ru-RU',{weekday:'short'}).replace('.',''); }
+function isSameDay(a,b){ return a.toDateString()===b.toDateString(); }
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+// Хранилище: API сервера (когда открыто по http/https) → localStorage → память.
+let persistent = true;
+const memStore = {};
+const IS_HTTP = location.protocol === 'http:' || location.protocol === 'https:';
+let authToken = '';
+try{ authToken = localStorage.getItem('sup_auth_token') || ''; }catch(e){}
+
+async function apiCall(method, key, body){
+  for(let attempt=0; attempt<3; attempt++){
+    const headers = {};
+    if(authToken) headers['Authorization'] = 'Bearer '+authToken;
+    if(body !== undefined) headers['Content-Type'] = 'application/json';
+    const res = await fetch('/api/store/'+encodeURIComponent(key), {method, headers, body});
+    if(res.status === 401){
+      const pw = prompt('Пароль от расписания:');
+      if(pw === null) throw new Error('unauthorized');
+      authToken = pw.trim();
+      try{ localStorage.setItem('sup_auth_token', authToken); }catch(e){}
+      continue;
+    }
+    if(!res.ok) throw new Error('api '+res.status);
+    return res.json();
+  }
+  throw new Error('unauthorized');
+}
+
+const store = {
+  async get(key){
+    if(IS_HTTP){
+      try{ return (await apiCall('GET', key)).value; }
+      catch(e){ /* сервер недоступен — читаем локальную копию */ }
+    }
+    try{ return localStorage.getItem(key); }catch(e){ return key in memStore ? memStore[key] : null; }
+  },
+  async set(key, val){
+    if(IS_HTTP){
+      try{
+        await apiCall('PUT', key, JSON.stringify({value: val}));
+        try{ localStorage.setItem(key, val); }catch(e){}
+        return;
+      }catch(e){ persistent = false; }
+    }
+    try{ localStorage.setItem(key, val); }catch(e){ memStore[key] = val; persistent = false; }
+  }
+};
+
+// Старый формат: одна запись на каждую доску брони (boardId), цена дублировалась.
+// Новый формат: одна запись на бронь, boardIds — массив, price — общая цена брони.
+// Записи старого формата с одинаковыми клиентом/временем/ценой сливаются в одну.
+function migrateBookings(list){
+  const out = [];
+  const groups = new Map();
+  let changed = false;
+  for(const b of list){
+    if(Array.isArray(b.boardIds)){ out.push(b); continue; }
+    changed = true;
+    const key = [b.client||'', b.start, b.end, b.price||0, b.notes||''].join('|');
+    if(groups.has(key)){
+      groups.get(key).boardIds.push(b.boardId);
+    } else {
+      const nb = {id:b.id, boardIds:[b.boardId], client:b.client||'', start:b.start, end:b.end, price:b.price||0, notes:b.notes||''};
+      groups.set(key, nb);
+      out.push(nb);
+    }
+  }
+  return {list: out, changed};
+}
+
+async function loadData(){
+  try{
+    const b = await store.get(STORAGE_KEY);
+    boards = b ? JSON.parse(b) : defaultBoards();
+  }catch(e){ boards = defaultBoards(); }
+  try{
+    const bk = await store.get(BOOKINGS_KEY);
+    const migrated = migrateBookings(bk ? JSON.parse(bk) : []);
+    bookings = migrated.list;
+    if(migrated.changed) await saveBookings();
+  }catch(e){ bookings = []; }
+  render();
+}
+function defaultBoards(){
+  return [
+    {id:uid(), name:'Доска 1', price:6000},
+    {id:uid(), name:'Доска 2', price:6000},
+    {id:uid(), name:'Доска 3', price:6000},
+    {id:uid(), name:'Outstep', price:6000},
+  ];
+}
+async function saveBoards(){
+  await store.set(STORAGE_KEY, JSON.stringify(boards));
+}
+async function saveBookings(){
+  await store.set(BOOKINGS_KEY, JSON.stringify(bookings));
+}
+
+function overlaps(boardId, startISO, endISO, excludeId){
+  const s = new Date(startISO).getTime();
+  const e = new Date(endISO).getTime();
+  return bookings.some(b=>{
+    if(!b.boardIds.includes(boardId)) return false;
+    if(excludeId && b.id===excludeId) return false;
+    const bs = new Date(b.start).getTime();
+    const be = new Date(b.end).getTime();
+    return s < be && e > bs;
+  });
+}
+
+function render(){
+  const app = document.getElementById('app');
+  const days = [];
+  for(let i=0;i<visibleDays;i++){ days.push(new Date(windowStart.getTime()+i*DAY_MS)); }
+  const rangeLabel = `${fmtDate(days[0])} — ${fmtDate(days[days.length-1])}`;
+  const totalWidth = days.length * PX_PER_DAY;
+  const now = new Date();
+  const nowOffset = (now - windowStart) / DAY_MS * PX_PER_DAY;
+  const showNow = now >= windowStart && now < new Date(windowStart.getTime()+visibleDays*DAY_MS);
+
+  app.innerHTML = `
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <h1>Расписание досок</h1>
+          <div class="sub">${boards.length} ${boardWord(boards.length)} · ${bookings.length} ${bookingWord(bookings.length)} в базе${persistent?'':' · ⚠ нет связи с сервером — изменения могут не сохраниться'}</div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="openFinance()">Финансы</button>
+        <button class="btn btn-ghost" onclick="openBoardManage()">Доски</button>
+        <button class="btn btn-primary" onclick="openAddModal()">+ Бронь</button>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button onclick="shiftWindow(-1)">‹</button>
+      <div class="range">${rangeLabel}</div>
+      <button onclick="shiftWindow(1)">›</button>
+      <div class="today" onclick="goToday()">Сегодня</div>
+    </div>
+
+    <div class="board">
+      <div class="scrollwrap">
+        <div class="grid" style="width:${118+totalWidth}px">
+          <div class="daylabels" style="width:${118+totalWidth}px">
+            <div class="rowlabel-spacer"></div>
+            ${days.map(d=>`
+              <div class="daycol ${isSameDay(d,new Date())?'today':''}" style="width:${PX_PER_DAY}px">
+                ${fmtWeekday(d)}<b>${fmtDate(d)}</b>
+              </div>`).join('')}
+          </div>
+          <div class="hourrow" style="width:${118+totalWidth}px">
+            <div class="rowlabel-spacer"></div>
+            ${days.map(()=>`
+              <div class="hourday" style="width:${PX_PER_DAY}px">
+                ${[0,3,6,9,12,15,18,21].map(h=>`<span class="hourtick-label ${h%6===0?'major':''}" style="left:${(h/24)*PX_PER_DAY}px">${String(h).padStart(2,'0')}</span>`).join('')}
+              </div>`).join('')}
+          </div>
+
+          ${boards.length===0? `<div class="empty-state">Пока нет ни одной доски. Добавь через кнопку «Доски».</div>` :
+            boards.map(board=>`
+            <div class="row">
+              <div class="rowlabel">
+                <div class="name" style="cursor:pointer" title="Нажми, чтобы переименовать" onclick="quickRenameBoard('${board.id}')">${escapeHtml(board.name)} ✎</div>
+                <div class="price">${board.price}₸/сутки</div>
+              </div>
+              <div class="timeline" style="--dayw:${PX_PER_DAY}px;width:${totalWidth}px">
+                ${days.map((d,i)=>[3,6,9,12,15,18,21].map(h=>`<div class="hour-tick ${h%6===0?'':'minor'}" style="left:${i*PX_PER_DAY+(h/24)*PX_PER_DAY}px"></div>`).join('')).join('')}
+                ${showNow?`<div class="nowline" style="left:${nowOffset}px"></div>`:''}
+                ${bookingsForBoard(board.id, windowStart, days.length).map(b=>renderBar(b, board.id)).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--tealDeep)"></span>занято</span>
+        <span><span class="dot" style="background:var(--warn)"></span>пересечение</span>
+        <span><span class="dot" style="background:var(--buoy)"></span>сейчас</span>
+        <span>пустое место на полосе = доска свободна</span>
+      </div>
+    </div>
+  `;
+}
+
+function boardWord(n){ return n===1?'доска':(n>=2&&n<=4?'доски':'досок'); }
+function bookingWord(n){ return n===1?'бронь':(n>=2&&n<=4?'брони':'броней'); }
+
+function bookingsForBoard(boardId, winStart, numDays){
+  const winEnd = new Date(winStart.getTime()+numDays*DAY_MS);
+  return bookings.filter(b=>{
+    if(!b.boardIds.includes(boardId)) return false;
+    const bs = new Date(b.start), be = new Date(b.end);
+    return bs < winEnd && be > winStart;
+  });
+}
+
+function renderBar(b, boardId){
+  const bs = new Date(b.start), be = new Date(b.end);
+  let left = (bs - windowStart)/DAY_MS*PX_PER_DAY;
+  let width = (be - bs)/DAY_MS*PX_PER_DAY;
+  if(left < 0){ width += left; left = 0; }
+  width = Math.max(width, 34);
+  const conflict = overlaps(boardId, b.start, b.end, b.id);
+  const timeStr = `${fmtShortDT(bs)} → ${fmtShortDT(be)}`;
+  return `<div class="bar ${conflict?'conflict':''}" style="left:${left}px;width:${width}px" onclick="openDetail('${b.id}')">
+    <span class="client">${escapeHtml(b.client||'Без имени')}${b.notes?' 📝':''}</span>
+    <span class="times">${timeStr}</span>
+  </div>`;
+}
+function fmtShortDT(d){
+  return d.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'}) + ' ' + d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+}
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+
+function shiftWindow(dir){
+  windowStart = new Date(windowStart.getTime() + dir*visibleDays*DAY_MS);
+  render();
+}
+function goToday(){ windowStart = startOfDay(new Date()); render(); }
+
+// ---- Add / Edit booking modal ----
+function openAddModal(prefBoardId){
+  editingBooking = null;
+  showBookingModal({
+    boardIds: prefBoardId ? [prefBoardId] : (boards[0] ? [boards[0].id] : []),
+    client:'', price: boards[0]? boards[0].price : 6000, notes:'',
+    startDate: toInputDate(new Date()), startTime:'12:00',
+    endDate: toInputDate(new Date(Date.now()+DAY_MS)), endTime:'12:00'
+  }, false);
+}
+function openDetail(id){
+  const b = bookings.find(x=>x.id===id);
+  if(!b) return;
+  const names = b.boardIds.map(bid=>boards.find(x=>x.id===bid)?.name).filter(Boolean).join(', ') || '?';
+  const overlay = document.createElement('div');
+  overlay.className='overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <button class="close-x" onclick="this.closest('.overlay').remove()">✕</button>
+      <h2>${escapeHtml(names)}</h2>
+      <div class="detail-row"><b>Клиент</b>${escapeHtml(b.client||'—')}</div>
+      <div class="detail-row"><b>Взял</b>${fmtShortDT(new Date(b.start))}</div>
+      <div class="detail-row"><b>Вернёт</b>${fmtShortDT(new Date(b.end))}</div>
+      <div class="detail-row"><b>Цена за бронь</b>${(b.price||0).toLocaleString('ru-RU')}₸</div>
+      ${b.notes?`<div class="detail-row"><b>Комментарий</b>${escapeHtml(b.notes)}</div>`:''}
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="this.closest('.overlay').remove(); editBooking('${b.id}')">Изменить</button>
+        <button class="btn btn-primary" style="background:var(--warn);box-shadow:0 3px 0 #a83333" onclick="deleteBooking('${b.id}')">Удалить</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+function editBooking(id){
+  const b = bookings.find(x=>x.id===id);
+  if(!b) return;
+  editingBooking = id;
+  const s = new Date(b.start), e = new Date(b.end);
+  showBookingModal({
+    boardIds: b.boardIds.slice(), client: b.client||'', price: b.price||6000, notes: b.notes||'',
+    startDate: toInputDate(s), startTime: toInputTime(s),
+    endDate: toInputDate(e), endTime: toInputTime(e)
+  }, true);
+}
+async function deleteBooking(id){
+  document.querySelectorAll('.overlay').forEach(o=>o.remove());
+  bookings = bookings.filter(b=>b.id!==id);
+  await saveBookings();
+  render();
+}
+function toInputDate(d){
+  const p = n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+function toInputTime(d){ return d.toTimeString().slice(0,5); }
+
+function showBookingModal(data, isEdit){
+  const overlay = document.createElement('div');
+  overlay.className='overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <button class="close-x" onclick="this.closest('.overlay').remove()">✕</button>
+      <h2>${isEdit?'Изменить бронь':'Новая бронь'}</h2>
+      <div id="modalWarn"></div>
+      <div class="field">
+        <label>Доски (можно выбрать несколько сразу)</label>
+        <div id="boardChecks" style="display:flex;flex-wrap:wrap;gap:6px">
+          ${boards.map(b=>`
+            <label style="display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px;cursor:pointer;background:var(--paper)">
+              <input type="checkbox" class="f_board_chk" value="${b.id}" ${data.boardIds.includes(b.id)?'checked':''}>
+              ${escapeHtml(b.name)}
+            </label>`).join('')}
+        </div>
+      </div>
+      <div class="field">
+        <label>Клиент (необязательно)</label>
+        <input id="f_client" type="text" value="${escapeAttr(data.client)}" placeholder="Имя / телефон">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Забирает — дата</label>
+          <input id="f_sdate" type="date" value="${data.startDate}">
+        </div>
+        <div class="field">
+          <label>Время</label>
+          <input id="f_stime" type="time" value="${data.startTime}">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Возврат — дата</label>
+          <input id="f_edate" type="date" value="${data.endDate}">
+        </div>
+        <div class="field">
+          <label>Время</label>
+          <input id="f_etime" type="time" value="${data.endTime}">
+        </div>
+      </div>
+      <div class="field">
+        <label>Цена за всю бронь, ₸ (все доски за всё время)</label>
+        <input id="f_price" type="number" value="${data.price}">
+        <div id="priceHint" style="font-size:11.5px;color:var(--muted);margin-top:4px"></div>
+      </div>
+      <div class="field">
+        <label>Комментарий (необязательно)</label>
+        <input id="f_notes" type="text" value="${escapeAttr(data.notes||'')}" placeholder="Например: доп. жилет, детский жилет">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="this.closest('.overlay').remove()">Отмена</button>
+        <button class="btn btn-primary" onclick="submitBooking()">${isEdit?'Сохранить':'Добавить'}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const check = ()=>{ checkConflictLive(); updatePriceHint(); };
+  ['f_sdate','f_stime','f_edate','f_etime'].forEach(id=>{
+    document.getElementById(id).addEventListener('change', check);
+  });
+  document.querySelectorAll('.f_board_chk').forEach(cb=>cb.addEventListener('change', check));
+  check();
+}
+function updatePriceHint(){
+  const el = document.getElementById('priceHint');
+  if(!el) return;
+  const ids = getCheckedBoardIds();
+  const s = new Date(document.getElementById('f_sdate').value+'T'+document.getElementById('f_stime').value);
+  const e = new Date(document.getElementById('f_edate').value+'T'+document.getElementById('f_etime').value);
+  if(!ids.length || isNaN(s) || isNaN(e) || e <= s){ el.innerHTML=''; return; }
+  const days = Math.max(1, Math.ceil((e - s)/DAY_MS));
+  const perDay = ids.reduce((sum,id)=>sum+(boards.find(b=>b.id===id)?.price||0),0);
+  const suggested = days*perDay;
+  el.innerHTML = `≈ ${days} сут. × ${perDay.toLocaleString('ru-RU')}₸/сут. = <b>${suggested.toLocaleString('ru-RU')}₸</b>
+    <a href="#" style="color:var(--teal)" onclick="document.getElementById('f_price').value=${suggested};return false">подставить</a>`;
+}
+function getCheckedBoardIds(){
+  return Array.from(document.querySelectorAll('.f_board_chk:checked')).map(cb=>cb.value);
+}
+function checkConflictLive(){
+  const boardIds = getCheckedBoardIds();
+  const start = document.getElementById('f_sdate').value+'T'+document.getElementById('f_stime').value;
+  const end = document.getElementById('f_edate').value+'T'+document.getElementById('f_etime').value;
+  const warnEl = document.getElementById('modalWarn');
+  if(new Date(end) <= new Date(start)){
+    warnEl.innerHTML = `<div class="conflict-warn">Возврат должен быть позже даты взятия.</div>`;
+    return;
+  }
+  const busy = boardIds.filter(id=>overlaps(id, start, end, editingBooking));
+  if(busy.length){
+    const names = busy.map(id=>boards.find(b=>b.id===id)?.name).filter(Boolean).join(', ');
+    warnEl.innerHTML = `<div class="conflict-warn">⚠ Уже занята в это время: ${escapeHtml(names)}.</div>`;
+  } else {
+    warnEl.innerHTML = '';
+  }
+}
+async function submitBooking(){
+  const boardIds = getCheckedBoardIds();
+  const client = document.getElementById('f_client').value.trim();
+  const start = document.getElementById('f_sdate').value+'T'+document.getElementById('f_stime').value;
+  const end = document.getElementById('f_edate').value+'T'+document.getElementById('f_etime').value;
+  const price = parseInt(document.getElementById('f_price').value)||0;
+  const notes = document.getElementById('f_notes').value.trim();
+  if(!boardIds.length){ alert('Выбери хотя бы одну доску'); return; }
+  if(new Date(end) <= new Date(start)){ alert('Возврат должен быть позже даты взятия'); return; }
+  if(editingBooking){
+    const b = bookings.find(x=>x.id===editingBooking);
+    Object.assign(b, {boardIds, client, start, end, price, notes});
+  } else {
+    bookings.push({id:uid(), boardIds, client, start, end, price, notes});
+  }
+  await saveBookings();
+  document.querySelectorAll('.overlay').forEach(o=>o.remove());
+  editingBooking = null;
+  render();
+}
+
+// ---- Board management ----
+function openBoardManage(){
+  const overlay = document.createElement('div');
+  overlay.className='overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <button class="close-x" onclick="this.closest('.overlay').remove()">✕</button>
+      <h2>Доски</h2>
+      <div id="boardList"></div>
+      <div class="addboard-inline" style="border-top:none;padding:0;margin-top:10px">
+        <input id="newBoardName" type="text" placeholder="Название новой доски">
+        <input id="newBoardPrice" type="number" placeholder="Цена/сутки" style="max-width:110px">
+        <button class="btn btn-primary" style="padding:8px 12px" onclick="addBoard()">+</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  renderBoardList();
+}
+function renderBoardList(){
+  const el = document.getElementById('boardList');
+  if(!el) return;
+  el.innerHTML = boards.map(b=>`
+    <div class="field-row" style="align-items:center;margin-bottom:8px">
+      <input value="${escapeAttr(b.name)}" onchange="renameBoard('${b.id}', this.value)" style="flex:2;padding:8px;border:1px solid var(--line);border-radius:7px">
+      <input type="number" value="${b.price}" onchange="repriceBoard('${b.id}', this.value)" style="flex:1;padding:8px;border:1px solid var(--line);border-radius:7px">
+      <button onclick="removeBoard('${b.id}')" style="border:none;background:none;color:var(--warn);cursor:pointer;font-size:13px">Удалить</button>
+    </div>
+  `).join('') || '<div style="color:var(--muted);font-size:13px">Нет досок</div>';
+}
+async function addBoard(){
+  const name = document.getElementById('newBoardName').value.trim();
+  const price = parseInt(document.getElementById('newBoardPrice').value) || 6000;
+  if(!name) return;
+  boards.push({id:uid(), name, price});
+  await saveBoards();
+  document.getElementById('newBoardName').value='';
+  document.getElementById('newBoardPrice').value='';
+  renderBoardList();
+  render();
+}
+async function renameBoard(id, name){
+  const b = boards.find(x=>x.id===id); if(b){ b.name = name; await saveBoards(); render(); }
+}
+async function quickRenameBoard(id){
+  const b = boards.find(x=>x.id===id); if(!b) return;
+  const name = prompt('Новое название доски:', b.name);
+  if(name===null) return;
+  const trimmed = name.trim();
+  if(!trimmed) return;
+  b.name = trimmed;
+  await saveBoards();
+  render();
+}
+async function repriceBoard(id, price){
+  const b = boards.find(x=>x.id===id); if(b){ b.price = parseInt(price)||0; await saveBoards(); render(); }
+}
+async function removeBoard(id){
+  if(bookings.some(b=>b.boardIds.includes(id))){
+    if(!confirm('На этой доске есть брони — удалить доску? Брони только на этой доске удалятся, остальные останутся на других досках.')) return;
+    bookings = bookings
+      .map(b=> b.boardIds.includes(id) ? {...b, boardIds: b.boardIds.filter(x=>x!==id)} : b)
+      .filter(b=>b.boardIds.length>0);
+    await saveBookings();
+  }
+  boards = boards.filter(b=>b.id!==id);
+  await saveBoards();
+  renderBoardList();
+  render();
+}
+
+// ---- Finance ----
+const EXPENSES_KEY = 'sup_expenses_v1';
+let expenses = [];
+async function loadExpenses(){
+  try{
+    const e = await store.get(EXPENSES_KEY);
+    expenses = e ? JSON.parse(e) : [];
+  }catch(err){ expenses = []; }
+}
+async function saveExpenses(){
+  await store.set(EXPENSES_KEY, JSON.stringify(expenses));
+}
+function openFinance(){
+  const now = new Date();
+  const completed = bookings.filter(b=>new Date(b.end) <= now);
+  const upcoming = bookings.filter(b=>new Date(b.end) > now);
+  const earnedRevenue = completed.reduce((s,b)=>s+(b.price||0),0);
+  const upcomingRevenue = upcoming.reduce((s,b)=>s+(b.price||0),0);
+  const totalExpense = expenses.reduce((s,e)=>s+(e.amount||0),0);
+  const profit = earnedRevenue - totalExpense;
+  // Цена брони делится поровну между её досками, чтобы сумма по таблице сходилась с «Заработано».
+  const perBoard = boards.map(b=>{
+    const rel = completed.filter(bk=>bk.boardIds.includes(b.id));
+    return {
+      name: b.name,
+      revenue: Math.round(rel.reduce((s,bk)=>s+(bk.price||0)/bk.boardIds.length,0)),
+      count: rel.length
+    };
+  }).sort((a,b)=>b.revenue-a.revenue);
+
+  const overlay = document.createElement('div');
+  overlay.className='overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:480px">
+      <button class="close-x" onclick="this.closest('.overlay').remove()">✕</button>
+      <h2>Финансы</h2>
+      <div class="fin-cards">
+        <div class="fin-card"><div class="lbl">Заработано</div><div class="val">${earnedRevenue.toLocaleString('ru-RU')}₸</div></div>
+        <div class="fin-card expense"><div class="lbl">Расходы</div><div class="val">${totalExpense.toLocaleString('ru-RU')}₸</div></div>
+        <div class="fin-card profit"><div class="lbl">Прибыль</div><div class="val">${profit.toLocaleString('ru-RU')}₸</div></div>
+      </div>
+      <div class="fin-cards" style="margin-top:-6px">
+        <div class="fin-card" style="background:#fff;border-style:dashed">
+          <div class="lbl">Забронировано вперёд (ещё не заработано)</div>
+          <div class="val" style="font-size:15px;color:var(--muted)">${upcomingRevenue.toLocaleString('ru-RU')}₸ · ${upcoming.length} брон.</div>
+        </div>
+      </div>
+
+      <div class="fin-section-title">Доход по доскам (только завершённые аренды)</div>
+      <table class="fin-table">
+        <tr><th>Доска</th><th>Броней</th><th>Доход</th></tr>
+        ${perBoard.map(p=>`<tr><td>${escapeHtml(p.name)}</td><td>${p.count}</td><td>${p.revenue.toLocaleString('ru-RU')}₸</td></tr>`).join('') || '<tr><td colspan="3" style="color:var(--muted)">Пока нет данных</td></tr>'}
+      </table>
+
+      <div class="fin-section-title">Расходы</div>
+      <table class="fin-table" id="expenseTable">
+        <tr><th>Дата</th><th>Что</th><th>Сумма</th><th></th></tr>
+        ${expenses.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).map(e=>`
+          <tr><td>${new Date(e.date).toLocaleDateString('ru-RU')}</td><td>${escapeHtml(e.desc)}</td><td>${e.amount.toLocaleString('ru-RU')}₸</td>
+          <td><span class="fin-del" onclick="deleteExpense('${e.id}')">✕</span></td></tr>`).join('') || '<tr><td colspan="4" style="color:var(--muted)">Нет расходов</td></tr>'}
+      </table>
+      <div class="expense-form">
+        <input id="exp_date" type="date" value="${toInputDate(new Date())}">
+        <input id="exp_desc" type="text" placeholder="Например: детские жилеты">
+        <input id="exp_amount" type="number" placeholder="Сумма, ₸">
+        <button class="btn btn-primary" style="padding:8px 12px" onclick="addExpense()">+</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+async function addExpense(){
+  const date = document.getElementById('exp_date').value;
+  const desc = document.getElementById('exp_desc').value.trim();
+  const amount = parseInt(document.getElementById('exp_amount').value)||0;
+  if(!desc || !amount) return;
+  expenses.push({id:uid(), date, desc, amount});
+  await saveExpenses();
+  document.querySelectorAll('.overlay').forEach(o=>o.remove());
+  openFinance();
+}
+async function deleteExpense(id){
+  expenses = expenses.filter(e=>e.id!==id);
+  await saveExpenses();
+  document.querySelectorAll('.overlay').forEach(o=>o.remove());
+  openFinance();
+}
+
+// ---- одноразовое заполнение недели 6–12 июля 2026 ----
+// После первого запуска (или отказа) блок становится неактивным, можно удалить.
+const SEED_FLAG = 'sup_seed_week_2026_07_06';
+async function seedWeekIfNeeded(){
+  if(await store.get(SEED_FLAG)) return;
+  if(!confirm('Заполнить брони за неделю 6–12 июля? Текущие брони будут заменены.')){
+    await store.set(SEED_FLAG, 'skipped');
+    return;
+  }
+  while(boards.length < 4){
+    boards.push({id:uid(), name:'Доска '+(boards.length+1), price:6000});
+  }
+  const [d1,d2,d3,d4] = boards.map(b=>b.id);
+  bookings = [
+    // Пн 6.07: две доски 11–20 (10к) + одна 10–20 (6к), 0 свободно
+    {id:uid(), boardIds:[d1,d2], client:'', start:'2026-07-06T11:00', end:'2026-07-06T20:00', price:10000, notes:''},
+    {id:uid(), boardIds:[d3],    client:'', start:'2026-07-06T10:00', end:'2026-07-06T20:00', price:6000,  notes:''},
+    // Вт 7.07 21:00 → Чт 9.07 вечер, одна доска
+    {id:uid(), boardIds:[d1],    client:'', start:'2026-07-07T21:00', end:'2026-07-09T19:00', price:12000, notes:''},
+    // Ср 8.07: Карина ~9 → 21-22; автоэлектрик днём → вечером
+    {id:uid(), boardIds:[d2],    client:'Карина',        start:'2026-07-08T09:00', end:'2026-07-08T21:30', price:6000, notes:''},
+    {id:uid(), boardIds:[d3],    client:'Автоэлектрик',  start:'2026-07-08T12:00', end:'2026-07-08T19:00', price:5000, notes:''},
+    // Чт 9.07 9:00 → Сб 11.07 к обеду, одна доска
+    {id:uid(), boardIds:[d2],    client:'', start:'2026-07-09T09:00', end:'2026-07-11T13:00', price:6000, notes:'вернут в сб к обеду'},
+    // Чт 9.07 вечер → Вс 12.07 вечер, две доски
+    {id:uid(), boardIds:[d1,d3], client:'', start:'2026-07-09T20:00', end:'2026-07-12T20:00', price:30000, notes:'до вс вечера'},
+    // Сб 11.07: женщина, две доски 18–22 (8к)
+    {id:uid(), boardIds:[d2,d4], client:'Женщина',  start:'2026-07-11T18:00', end:'2026-07-11T22:00', price:8000, notes:''},
+    // Вс 12.07 после обеда → Пн 13.07 до обеда, те же две доски
+    {id:uid(), boardIds:[d2,d4], client:'Мужчина',  start:'2026-07-12T14:00', end:'2026-07-13T12:00', price:10000, notes:'цена уточнить'},
+  ];
+  await saveBoards();
+  await saveBookings();
+  await store.set(SEED_FLAG, 'done');
+  render();
+}
+
+loadData().then(seedWeekIfNeeded);
+loadExpenses();
+</script>
+</body>
+</html>

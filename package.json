@@ -1,0 +1,10 @@
+{
+  "name": "sup-scheduler",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Расписание аренды SUP-досок: занятость, брони, финансы",
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  }
+}
