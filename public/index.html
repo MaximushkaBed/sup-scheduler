@@ -127,20 +127,21 @@ h1{
 }
 
 .bar{
-  position:absolute;top:9px;height:46px;border-radius:8px;
-  background:linear-gradient(180deg,var(--teal),var(--tealDeep));
-  color:#fff;font-size:11px;padding:5px 8px;cursor:pointer;overflow:hidden;
-  box-shadow:0 2px 4px rgba(11,71,68,.25);
-  border:1px solid rgba(255,255,255,.15);
+  position:absolute;top:9px;height:46px;border-radius:7px;
+  background:#D7E9E3;
+  color:var(--ink);font-size:11px;padding:5px 8px 5px 10px;cursor:pointer;overflow:hidden;
+  box-shadow:0 1px 2px rgba(11,71,68,.10);
+  border:1px solid rgba(15,46,44,.07);
+  border-left:4px solid var(--teal);
 }
-.bar.conflict{background:linear-gradient(180deg,#E06A6A,var(--warn)) !important;}
-.bar.cut-r{border-top-right-radius:2px;border-bottom-right-radius:2px;border-right:2px dashed rgba(255,255,255,.75);}
-.bar.cut-l{border-top-left-radius:2px;border-bottom-left-radius:2px;border-left:2px dashed rgba(255,255,255,.75);}
-.bar .multi{background:rgba(255,255,255,.28);border-radius:4px;padding:0 4px;margin-left:5px;font-size:9.5px;font-family:var(--font-mono);}
+.bar:hover{filter:brightness(.965);}
+.bar.conflict{background:#F8DADA !important;border-left-color:var(--warn) !important;color:#8A2525;}
+.bar.cut-r{border-top-right-radius:2px;border-bottom-right-radius:2px;border-right:2px dashed rgba(15,46,44,.35);}
+.bar.cut-l{border-top-left-radius:2px;border-bottom-left-radius:2px;border-left-style:dashed !important;}
+.bar .multi{background:rgba(15,46,44,.10);border-radius:4px;padding:0 4px;margin-left:5px;font-size:9.5px;font-family:var(--font-mono);}
 .timeline{cursor:cell;}
-.bar{cursor:pointer;}
 .bar .client{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.bar .times{font-family:var(--font-mono);font-size:10px;opacity:.85;display:block;white-space:nowrap;overflow:hidden;}
+.bar .times{font-family:var(--font-mono);font-size:10px;opacity:.72;display:block;white-space:nowrap;overflow:hidden;}
 
 .legend{display:flex;gap:16px;align-items:center;padding:10px 12px;font-size:11.5px;color:var(--muted);flex-wrap:wrap;}
 .legend span{display:inline-flex;align-items:center;gap:5px;}
@@ -419,7 +420,7 @@ function render(){
         </div>
       </div>
       <div class="legend">
-        <span><span class="dot" style="background:#1B7F77"></span><span class="dot" style="background:#4A66B0"></span><span class="dot" style="background:#8A4E9E"></span>каждая бронь — своим цветом (×N — бронь на несколько досок)</span>
+        <span><span class="dot" style="background:#D7E9E3;border-left:3px solid #2C7A6E"></span><span class="dot" style="background:#DCE6F5;border-left:3px solid #4A6FB5"></span><span class="dot" style="background:#F7E3D3;border-left:3px solid #C0703A"></span>каждая бронь — своим цветом (×N — бронь на несколько досок)</span>
         <span><span class="dot" style="background:var(--warn)"></span>пересечение</span>
         <span><span class="dot" style="background:var(--buoy)"></span>сейчас</span>
         <span>пунктирный край = бронь продолжается за окном</span>
@@ -472,7 +473,7 @@ function renderBar(b, boardId){
   const timeStr = `${fmtShortDT(bs)} → ${fmtShortDT(be)}`;
   const multi = b.boardIds.length > 1 ? `<span class="multi">×${b.boardIds.length}</span>` : '';
   return `<div class="bar ${conflict?'conflict':''} ${cutL?'cut-l':''} ${cutR?'cut-r':''}"
-    style="left:${left}px;width:${width}px;background:linear-gradient(180deg,${c[0]},${c[1]})"
+    style="left:${left}px;width:${width}px;background:${c[0]};border-left-color:${c[1]}"
     title="${escapeAttr((b.client||'Без имени')+' · '+timeStr)}"
     onclick="event.stopPropagation();openDetail('${b.id}')">
     <span class="client">${escapeHtml(b.client||'Без имени')}${multi}${b.notes?' 📝':''}</span>
@@ -485,19 +486,20 @@ function fmtShortDT(d){
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
 
-// Палитра броней: тёмные насыщенные пары [верх, низ] градиента — белый текст читается на всех.
+// Палитра броней: пары [светлая заливка, насыщенная полоска слева].
+// Мягкие пастельные тона одной светлоты — тёмный текст читается на всех.
 // Цвет детерминирован по id брони: бронь на несколько досок горит одним цветом на всех рядах.
 const PALETTE = [
-  ['#1B7F77','#0B4744'],
-  ['#4A66B0','#2E4480'],
-  ['#8A4E9E','#5F3070'],
-  ['#C05B2E','#8A3C15'],
-  ['#AD4462','#7C2B44'],
-  ['#3C7FA6','#265E80'],
-  ['#4E8A46','#31612B'],
-  ['#8A6D2F','#634D1C'],
-  ['#6B5AA8','#4A3C7E'],
-  ['#B04A8F','#7E3064'],
+  ['#D7E9E3','#2C7A6E'], // морской тил
+  ['#DCE6F5','#4A6FB5'], // спокойный синий
+  ['#E8E1F3','#7A5FB0'], // лаванда
+  ['#F7E3D3','#C0703A'], // персик
+  ['#F6DEE5','#B75B7E'], // роза
+  ['#D8EAF2','#3684A8'], // небо
+  ['#E2EDD3','#6A8F3C'], // фисташка
+  ['#F2E9D0','#A98A35'], // песок
+  ['#E1E3F7','#5F68C4'], // барвинок
+  ['#EDDFEA','#9A5B85'], // мальва
 ];
 function colorFor(id){
   let h = 0;
