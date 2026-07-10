@@ -90,7 +90,7 @@ h1{
 .grid{position:relative;min-width:100%;}
 
 .daylabels{display:flex;position:sticky;top:0;background:var(--panel);z-index:3;border-bottom:1px solid var(--line);}
-.rowlabel-spacer{width:var(--labelw);flex:none;border-right:1px solid var(--line);background:var(--panel);position:sticky;left:0;z-index:4;}
+.rowlabel-spacer{width:var(--labelw);flex:none;border-right:1px solid var(--line);background:var(--panel);position:sticky;left:0;z-index:7;}
 .daycol{
   flex:none;text-align:center;padding:8px 0 7px;font-family:var(--font-mono);font-size:11px;
   color:var(--muted);border-right:1px dashed var(--line);
@@ -99,11 +99,17 @@ h1{
 .daycol b{display:block;color:var(--ink);font-family:var(--font-body);font-weight:600;font-size:12.5px;}
 .daycol.today b{color:var(--buoy);}
 
-.row{display:flex;border-bottom:1px solid var(--line);}
+.row{display:flex;border-bottom:1px solid var(--line);transition:transform .15s ease;}
 .row:last-child{border-bottom:none;}
+.row.dragging{opacity:.85;position:relative;z-index:10;box-shadow:0 6px 16px rgba(11,71,68,.20);transition:none;background:var(--panel);}
+.row-drag{
+  position:absolute;top:4px;right:4px;color:var(--muted);opacity:.55;
+  cursor:grab;font-size:14px;padding:3px 6px;touch-action:none;user-select:none;
+}
+.row-drag:hover{opacity:1;}
 .rowlabel{
   width:var(--labelw);flex:none;padding:14px 10px;border-right:1px solid var(--line);
-  background:var(--panel);position:sticky;left:0;z-index:2;
+  background:var(--panel);position:sticky;left:0;z-index:6; /* выше nowline и баров */
   display:flex;flex-direction:column;gap:4px;
 }
 .rowlabel .name{font-weight:600;font-size:13px;}
@@ -170,6 +176,14 @@ h1{
 }
 .field-row{display:flex;gap:8px;}
 .field-row .field{flex:1;}
+.board-chip{
+  display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;
+  padding:8px 12px;font-size:13px;cursor:pointer;background:var(--paper);
+  user-select:none;line-height:1.2;white-space:nowrap;
+}
+.board-chip input{position:absolute;opacity:0;width:0;height:0;margin:0;pointer-events:none;}
+.board-chip.on{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:600;}
+.board-chip.on::before{content:"✓";font-size:11px;}
 .conflict-warn{
   background:var(--buoySoft);border:1px solid var(--buoy);color:#8A3C15;font-size:12px;
   padding:8px 10px;border-radius:8px;margin-bottom:12px;
@@ -182,8 +196,8 @@ h1{
 .detail-row{font-size:13px;margin-bottom:6px;color:var(--ink);}
 .detail-row b{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;display:block;margin-bottom:1px;}
 
-.board-item{display:flex;gap:6px;align-items:center;margin-bottom:8px;}
-.board-item.dragging{opacity:.45;}
+.board-item{display:flex;gap:6px;align-items:center;margin-bottom:8px;transition:transform .15s ease;}
+.board-item.dragging{opacity:.85;position:relative;z-index:10;background:#fff;transition:none;}
 .drag-handle{cursor:grab;color:var(--muted);font-size:15px;padding:4px 3px;touch-action:none;user-select:none;flex:none;}
 .board-item .bi-name{flex:2;min-width:0;padding:8px;border:1px solid var(--line);border-radius:7px;font-size:13px;}
 .board-item .bi-price{flex:1;min-width:0;max-width:90px;padding:8px;border:1px solid var(--line);border-radius:7px;font-size:13px;}
@@ -480,7 +494,8 @@ function render(){
             boards.map(board=>`
             <div class="row">
               <div class="rowlabel">
-                <div class="name" style="cursor:pointer" title="Нажми, чтобы переименовать" onclick="quickRenameBoard('${board.id}')">${escapeHtml(board.name)} ✎</div>
+                <span class="row-drag" onpointerdown="dragReorderRows(event)" title="Потяни вверх/вниз — поменять порядок досок">⠿</span>
+                <div class="name" style="cursor:pointer;padding-right:16px" title="Нажми, чтобы переименовать" onclick="quickRenameBoard('${board.id}')">${escapeHtml(board.name)} ✎</div>
                 <div class="price">${board.price}₸/сутки</div>
               </div>
               <div class="timeline" style="--dayw:${PX_PER_DAY}px;width:${totalWidth}px" onclick="timelineClick(event,'${board.id}')">
@@ -500,6 +515,7 @@ function render(){
         <span class="hint">пунктирный край = бронь продолжается за окном</span>
         <span class="hint">🌙 = ночь 00–06 сжата, чтобы не мешала</span>
         <span class="hint">клик/тап по пустому слоту = новая бронь с этого часа</span>
+        <span class="hint">⠿ у названия доски = поменять порядок строк</span>
       </div>
     </div>
     <button class="fab" onclick="openAddModal()" title="Новая бронь">+</button>
@@ -659,7 +675,7 @@ function showBookingModal(data, isEdit){
         <label>Доски (можно выбрать несколько сразу)</label>
         <div id="boardChecks" style="display:flex;flex-wrap:wrap;gap:6px">
           ${boards.map(b=>`
-            <label style="display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px;cursor:pointer;background:var(--paper)">
+            <label class="board-chip ${data.boardIds.includes(b.id)?'on':''}">
               <input type="checkbox" class="f_board_chk" value="${b.id}" ${data.boardIds.includes(b.id)?'checked':''}>
               ${escapeHtml(b.name)}
             </label>`).join('')}
@@ -708,7 +724,10 @@ function showBookingModal(data, isEdit){
   ['f_sdate','f_stime','f_edate','f_etime'].forEach(id=>{
     document.getElementById(id).addEventListener('change', check);
   });
-  document.querySelectorAll('.f_board_chk').forEach(cb=>cb.addEventListener('change', check));
+  document.querySelectorAll('.f_board_chk').forEach(cb=>cb.addEventListener('change', ()=>{
+    cb.closest('.board-chip').classList.toggle('on', cb.checked);
+    check();
+  }));
   check();
 }
 function updatePriceHint(){
@@ -795,35 +814,55 @@ function renderBoardList(){
       <button class="bi-del" onclick="removeBoard('${b.id}')" title="Удалить доску">✕</button>
     </div>
   `).join('') || '<div style="color:var(--muted);font-size:13px">Нет досок</div>';
-  el.querySelectorAll('.drag-handle').forEach(h=>h.addEventListener('pointerdown', startBoardDrag));
+  el.querySelectorAll('.drag-handle').forEach(h=>h.addEventListener('pointerdown', e=>dragReorder(e, '.board-item', commitBoardOrder)));
 }
-function startBoardDrag(e){
+// Универсальное вертикальное перетаскивание элементов списка (мышь и палец).
+// DOM-узлы во время драга не переставляются (на тач-экранах это обрывает жест
+// через pointercancel) — соседи сдвигаются transform'ами, порядок применяется
+// на отпускании.
+function dragReorder(e, itemSel, onDrop){
   e.preventDefault();
-  const item = e.target.closest('.board-item');
-  const list = item.parentElement;
+  const item = e.target.closest(itemSel);
+  if(!item) return;
+  const container = item.parentElement;
+  const items = [...container.querySelectorAll(itemSel)];
+  const startIdx = items.indexOf(item);
+  const step = item.getBoundingClientRect().height +
+    (parseFloat(getComputedStyle(item).marginBottom) || 0);
+  const startY = e.clientY;
+  let targetIdx = startIdx;
   item.classList.add('dragging');
   const move = ev=>{
-    const others = [...list.querySelectorAll('.board-item:not(.dragging)')];
-    const after = others.find(it=>{
-      const r = it.getBoundingClientRect();
-      return ev.clientY < r.top + r.height/2;
+    const dy = ev.clientY - startY;
+    item.style.transform = `translateY(${dy}px)`;
+    targetIdx = Math.max(0, Math.min(items.length-1, startIdx + Math.round(dy/step)));
+    items.forEach((it,i)=>{
+      if(it === item) return;
+      let shift = 0;
+      if(startIdx < targetIdx && i > startIdx && i <= targetIdx) shift = -step;
+      else if(startIdx > targetIdx && i >= targetIdx && i < startIdx) shift = step;
+      it.style.transform = shift ? `translateY(${shift}px)` : '';
     });
-    if(after) list.insertBefore(item, after);
-    else list.appendChild(item);
   };
   const up = async ()=>{
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', up);
     document.removeEventListener('pointercancel', up);
     item.classList.remove('dragging');
-    const order = [...list.querySelectorAll('.board-item')].map(d=>d.dataset.id);
-    boards.sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id));
-    await saveBoards();
-    render(); // сетка под модалкой обновляется сразу
+    items.forEach(it=>{ it.style.transform=''; });
+    if(targetIdx !== startIdx) await onDrop(startIdx, targetIdx);
   };
   document.addEventListener('pointermove', move);
   document.addEventListener('pointerup', up);
   document.addEventListener('pointercancel', up);
+}
+function dragReorderRows(e){ dragReorder(e, '.row', commitBoardOrder); }
+async function commitBoardOrder(from, to){
+  const [moved] = boards.splice(from, 1);
+  boards.splice(to, 0, moved);
+  await saveBoards();
+  renderBoardList(); // обновит список, если модалка «Доски» открыта
+  render();
 }
 async function addBoard(){
   const name = document.getElementById('newBoardName').value.trim();
