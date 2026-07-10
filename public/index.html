@@ -110,16 +110,14 @@ h1{
 
 .timeline{position:relative;height:64px;flex:1 1 auto;
   background-image:
-    repeating-linear-gradient(to right, transparent, transparent calc(var(--dayw) - 1px), var(--line) calc(var(--dayw) - 1px), var(--line) var(--dayw)),
-    repeating-linear-gradient(to right,
-      rgba(15,46,44,.05) 0,
-      rgba(15,46,44,.05) calc(var(--dayw) * 6 / 24),
-      transparent calc(var(--dayw) * 6 / 24),
-      transparent calc(var(--dayw) * 18 / 24),
-      rgba(15,46,44,.05) calc(var(--dayw) * 18 / 24),
-      rgba(15,46,44,.05) var(--dayw)
-    );
+    repeating-linear-gradient(to right, transparent, transparent calc(var(--dayw) - 1px), var(--line) calc(var(--dayw) - 1px), var(--line) var(--dayw));
 }
+.night-zone{
+  position:absolute;top:0;bottom:0;
+  background:repeating-linear-gradient(135deg, rgba(15,46,44,.06) 0 4px, transparent 4px 8px);
+  border-right:1px solid var(--line);
+}
+.hourtick-label.moon{font-size:8.5px;opacity:.55;}
 .noon-tick{position:absolute;top:0;bottom:0;width:1px;background:var(--line);opacity:.5;}
 .nowline{position:absolute;top:0;bottom:0;width:2px;background:var(--buoy);z-index:5;}
 .nowline::after{
@@ -229,7 +227,30 @@ h1{
 const STORAGE_KEY = 'sup_boards_v1';
 const BOOKINGS_KEY = 'sup_bookings_v1';
 const DAY_MS = 86400000;
-const PX_PER_DAY = 260; // width per day column
+const PX_PER_DAY = 260; // ширина одного дня, px
+
+// Ночь 00–06 почти всегда пустая — сжимаем её в узкую полоску,
+// а дневные 18 часов растягиваем на остаток ширины дня.
+const NIGHT_END = 6;                     // часы 0–6 сжаты
+const NIGHT_W = 30;                      // ширина сжатой ночи, px
+const DAY_W = PX_PER_DAY - NIGHT_W;      // ширина часов 6–24, px
+
+function hourX(h){ // px от начала дня для часа 0..24
+  return h <= NIGHT_END
+    ? h / NIGHT_END * NIGHT_W
+    : NIGHT_W + (h - NIGHT_END) / (24 - NIGHT_END) * DAY_W;
+}
+function timeToX(t){ // px от начала окна для момента времени
+  const ms = t - windowStart;
+  const dayIdx = Math.floor(ms / DAY_MS);
+  const hours = (ms - dayIdx*DAY_MS) / 3600000;
+  return dayIdx * PX_PER_DAY + hourX(hours);
+}
+function xToHour(px){ // час 0..24 по px внутри дня
+  return px <= NIGHT_W
+    ? px / NIGHT_W * NIGHT_END
+    : NIGHT_END + (px - NIGHT_W) / DAY_W * (24 - NIGHT_END);
+}
 
 let boards = [];
 let bookings = [];
@@ -359,7 +380,7 @@ function render(){
   const rangeLabel = `${fmtDate(days[0])} — ${fmtDate(days[days.length-1])}`;
   const totalWidth = days.length * PX_PER_DAY;
   const now = new Date();
-  const nowOffset = (now - windowStart) / DAY_MS * PX_PER_DAY;
+  const nowOffset = timeToX(now);
   const showNow = now >= windowStart && now < new Date(windowStart.getTime()+visibleDays*DAY_MS);
 
   app.innerHTML = `
@@ -399,7 +420,8 @@ function render(){
             <div class="rowlabel-spacer"></div>
             ${days.map(()=>`
               <div class="hourday" style="width:${PX_PER_DAY}px">
-                ${[0,3,6,9,12,15,18,21].map(h=>`<span class="hourtick-label ${h%6===0?'major':''}" style="left:${(h/24)*PX_PER_DAY}px">${String(h).padStart(2,'0')}</span>`).join('')}
+                <span class="hourtick-label moon" style="left:${NIGHT_W/2}px">🌙</span>
+                ${[6,9,12,15,18,21].map(h=>`<span class="hourtick-label ${h%6===0?'major':''}" style="left:${hourX(h)}px">${String(h).padStart(2,'0')}</span>`).join('')}
               </div>`).join('')}
           </div>
 
@@ -411,7 +433,8 @@ function render(){
                 <div class="price">${board.price}₸/сутки</div>
               </div>
               <div class="timeline" style="--dayw:${PX_PER_DAY}px;width:${totalWidth}px" onclick="timelineClick(event,'${board.id}')">
-                ${days.map((d,i)=>[3,6,9,12,15,18,21].map(h=>`<div class="hour-tick ${h%6===0?'':'minor'}" style="left:${i*PX_PER_DAY+(h/24)*PX_PER_DAY}px"></div>`).join('')).join('')}
+                ${days.map((d,i)=>`<div class="night-zone" style="left:${i*PX_PER_DAY}px;width:${NIGHT_W}px"></div>`
+                  + [9,12,15,18,21].map(h=>`<div class="hour-tick ${h%6===0?'':'minor'}" style="left:${i*PX_PER_DAY+hourX(h)}px"></div>`).join('')).join('')}
                 ${showNow?`<div class="nowline" style="left:${nowOffset}px"></div>`:''}
                 ${bookingsForBoard(board.id, windowStart, days.length).map(b=>renderBar(b, board.id)).join('')}
               </div>
@@ -424,7 +447,8 @@ function render(){
         <span><span class="dot" style="background:var(--warn)"></span>пересечение</span>
         <span><span class="dot" style="background:var(--buoy)"></span>сейчас</span>
         <span>пунктирный край = бронь продолжается за окном</span>
-        <span>клик по пустому месту полосы = новая бронь на этот день</span>
+        <span>🌙 = ночь 00–06 сжата, чтобы не мешала</span>
+        <span>клик по пустому слоту = новая бронь с этого часа</span>
       </div>
     </div>
   `;
@@ -435,14 +459,17 @@ function render(){
 function timelineClick(e, boardId){
   if(e.target.closest('.bar')) return;
   const rect = e.currentTarget.getBoundingClientRect();
-  const dayIdx = Math.max(0, Math.min(visibleDays-1, Math.floor((e.clientX - rect.left)/PX_PER_DAY)));
+  const px = e.clientX - rect.left;
+  const dayIdx = Math.max(0, Math.min(visibleDays-1, Math.floor(px/PX_PER_DAY)));
+  const hour = Math.max(0, Math.min(23, Math.round(xToHour(px - dayIdx*PX_PER_DAY))));
+  const hh = String(hour).padStart(2,'0')+':00';
   const day = new Date(windowStart.getTime() + dayIdx*DAY_MS);
   editingBooking = null;
   showBookingModal({
     boardIds: [boardId], client: '',
     price: (boards.find(x=>x.id===boardId) || {}).price || 6000, notes: '',
-    startDate: toInputDate(day), startTime: '12:00',
-    endDate: toInputDate(new Date(day.getTime()+DAY_MS)), endTime: '12:00'
+    startDate: toInputDate(day), startTime: hh,
+    endDate: toInputDate(new Date(day.getTime()+DAY_MS)), endTime: hh
   }, false);
 }
 
@@ -461,8 +488,8 @@ function bookingsForBoard(boardId, winStart, numDays){
 function renderBar(b, boardId){
   const bs = new Date(b.start), be = new Date(b.end);
   const winWidth = visibleDays * PX_PER_DAY;
-  let left = (bs - windowStart)/DAY_MS*PX_PER_DAY;
-  let right = (be - windowStart)/DAY_MS*PX_PER_DAY;
+  let left = timeToX(bs);
+  let right = timeToX(be);
   const cutL = left < 0, cutR = right > winWidth;
   if(cutL) left = 0;
   if(cutR) right = winWidth;
