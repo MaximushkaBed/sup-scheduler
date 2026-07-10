@@ -133,7 +133,12 @@ h1{
   box-shadow:0 2px 4px rgba(11,71,68,.25);
   border:1px solid rgba(255,255,255,.15);
 }
-.bar.conflict{background:linear-gradient(180deg,#E06A6A,var(--warn));}
+.bar.conflict{background:linear-gradient(180deg,#E06A6A,var(--warn)) !important;}
+.bar.cut-r{border-top-right-radius:2px;border-bottom-right-radius:2px;border-right:2px dashed rgba(255,255,255,.75);}
+.bar.cut-l{border-top-left-radius:2px;border-bottom-left-radius:2px;border-left:2px dashed rgba(255,255,255,.75);}
+.bar .multi{background:rgba(255,255,255,.28);border-radius:4px;padding:0 4px;margin-left:5px;font-size:9.5px;font-family:var(--font-mono);}
+.timeline{cursor:cell;}
+.bar{cursor:pointer;}
 .bar .client{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bar .times{font-family:var(--font-mono);font-size:10px;opacity:.85;display:block;white-space:nowrap;overflow:hidden;}
 
@@ -175,6 +180,13 @@ h1{
 
 .detail-row{font-size:13px;margin-bottom:6px;color:var(--ink);}
 .detail-row b{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;display:block;margin-bottom:1px;}
+
+.board-item{display:flex;gap:6px;align-items:center;margin-bottom:8px;}
+.board-item.dragging{opacity:.45;}
+.drag-handle{cursor:grab;color:var(--muted);font-size:15px;padding:4px 3px;touch-action:none;user-select:none;flex:none;}
+.board-item .bi-name{flex:2;min-width:0;padding:8px;border:1px solid var(--line);border-radius:7px;font-size:13px;}
+.board-item .bi-price{flex:1;min-width:0;max-width:90px;padding:8px;border:1px solid var(--line);border-radius:7px;font-size:13px;}
+.board-item .bi-del{border:none;background:none;color:var(--warn);cursor:pointer;font-size:14px;flex:none;}
 
 .addboard-inline{display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--line);}
 .addboard-inline input{flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px;}
@@ -340,6 +352,7 @@ function overlaps(boardId, startISO, endISO, excludeId){
 
 function render(){
   const app = document.getElementById('app');
+  const prevScroll = app.querySelector('.scrollwrap')?.scrollLeft || 0;
   const days = [];
   for(let i=0;i<visibleDays;i++){ days.push(new Date(windowStart.getTime()+i*DAY_MS)); }
   const rangeLabel = `${fmtDate(days[0])} — ${fmtDate(days[days.length-1])}`;
@@ -396,7 +409,7 @@ function render(){
                 <div class="name" style="cursor:pointer" title="Нажми, чтобы переименовать" onclick="quickRenameBoard('${board.id}')">${escapeHtml(board.name)} ✎</div>
                 <div class="price">${board.price}₸/сутки</div>
               </div>
-              <div class="timeline" style="--dayw:${PX_PER_DAY}px;width:${totalWidth}px">
+              <div class="timeline" style="--dayw:${PX_PER_DAY}px;width:${totalWidth}px" onclick="timelineClick(event,'${board.id}')">
                 ${days.map((d,i)=>[3,6,9,12,15,18,21].map(h=>`<div class="hour-tick ${h%6===0?'':'minor'}" style="left:${i*PX_PER_DAY+(h/24)*PX_PER_DAY}px"></div>`).join('')).join('')}
                 ${showNow?`<div class="nowline" style="left:${nowOffset}px"></div>`:''}
                 ${bookingsForBoard(board.id, windowStart, days.length).map(b=>renderBar(b, board.id)).join('')}
@@ -406,13 +419,30 @@ function render(){
         </div>
       </div>
       <div class="legend">
-        <span><span class="dot" style="background:var(--tealDeep)"></span>занято</span>
+        <span><span class="dot" style="background:#1B7F77"></span><span class="dot" style="background:#4A66B0"></span><span class="dot" style="background:#8A4E9E"></span>каждая бронь — своим цветом (×N — бронь на несколько досок)</span>
         <span><span class="dot" style="background:var(--warn)"></span>пересечение</span>
         <span><span class="dot" style="background:var(--buoy)"></span>сейчас</span>
-        <span>пустое место на полосе = доска свободна</span>
+        <span>пунктирный край = бронь продолжается за окном</span>
+        <span>клик по пустому месту полосы = новая бронь на этот день</span>
       </div>
     </div>
   `;
+  const sw = app.querySelector('.scrollwrap');
+  if(sw) sw.scrollLeft = prevScroll;
+}
+
+function timelineClick(e, boardId){
+  if(e.target.closest('.bar')) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const dayIdx = Math.max(0, Math.min(visibleDays-1, Math.floor((e.clientX - rect.left)/PX_PER_DAY)));
+  const day = new Date(windowStart.getTime() + dayIdx*DAY_MS);
+  editingBooking = null;
+  showBookingModal({
+    boardIds: [boardId], client: '',
+    price: (boards.find(x=>x.id===boardId) || {}).price || 6000, notes: '',
+    startDate: toInputDate(day), startTime: '12:00',
+    endDate: toInputDate(new Date(day.getTime()+DAY_MS)), endTime: '12:00'
+  }, false);
 }
 
 function boardWord(n){ return n===1?'доска':(n>=2&&n<=4?'доски':'досок'); }
@@ -429,14 +459,23 @@ function bookingsForBoard(boardId, winStart, numDays){
 
 function renderBar(b, boardId){
   const bs = new Date(b.start), be = new Date(b.end);
+  const winWidth = visibleDays * PX_PER_DAY;
   let left = (bs - windowStart)/DAY_MS*PX_PER_DAY;
-  let width = (be - bs)/DAY_MS*PX_PER_DAY;
-  if(left < 0){ width += left; left = 0; }
-  width = Math.max(width, 34);
+  let right = (be - windowStart)/DAY_MS*PX_PER_DAY;
+  const cutL = left < 0, cutR = right > winWidth;
+  if(cutL) left = 0;
+  if(cutR) right = winWidth;
+  const width = Math.max(right - left, 34);
+  if(left + width > winWidth) left = Math.max(0, winWidth - width);
   const conflict = overlaps(boardId, b.start, b.end, b.id);
+  const c = colorFor(b.id);
   const timeStr = `${fmtShortDT(bs)} → ${fmtShortDT(be)}`;
-  return `<div class="bar ${conflict?'conflict':''}" style="left:${left}px;width:${width}px" onclick="openDetail('${b.id}')">
-    <span class="client">${escapeHtml(b.client||'Без имени')}${b.notes?' 📝':''}</span>
+  const multi = b.boardIds.length > 1 ? `<span class="multi">×${b.boardIds.length}</span>` : '';
+  return `<div class="bar ${conflict?'conflict':''} ${cutL?'cut-l':''} ${cutR?'cut-r':''}"
+    style="left:${left}px;width:${width}px;background:linear-gradient(180deg,${c[0]},${c[1]})"
+    title="${escapeAttr((b.client||'Без имени')+' · '+timeStr)}"
+    onclick="event.stopPropagation();openDetail('${b.id}')">
+    <span class="client">${escapeHtml(b.client||'Без имени')}${multi}${b.notes?' 📝':''}</span>
     <span class="times">${timeStr}</span>
   </div>`;
 }
@@ -445,6 +484,26 @@ function fmtShortDT(d){
 }
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+
+// Палитра броней: тёмные насыщенные пары [верх, низ] градиента — белый текст читается на всех.
+// Цвет детерминирован по id брони: бронь на несколько досок горит одним цветом на всех рядах.
+const PALETTE = [
+  ['#1B7F77','#0B4744'],
+  ['#4A66B0','#2E4480'],
+  ['#8A4E9E','#5F3070'],
+  ['#C05B2E','#8A3C15'],
+  ['#AD4462','#7C2B44'],
+  ['#3C7FA6','#265E80'],
+  ['#4E8A46','#31612B'],
+  ['#8A6D2F','#634D1C'],
+  ['#6B5AA8','#4A3C7E'],
+  ['#B04A8F','#7E3064'],
+];
+function colorFor(id){
+  let h = 0;
+  for(const ch of String(id)) h = (h*31 + ch.charCodeAt(0)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
 
 function shiftWindow(dir){
   windowStart = new Date(windowStart.getTime() + dir*visibleDays*DAY_MS);
@@ -633,6 +692,7 @@ function openBoardManage(){
     <div class="modal">
       <button class="close-x" onclick="this.closest('.overlay').remove()">✕</button>
       <h2>Доски</h2>
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">⠿ — потяни, чтобы поменять порядок на экране</div>
       <div id="boardList"></div>
       <div class="addboard-inline" style="border-top:none;padding:0;margin-top:10px">
         <input id="newBoardName" type="text" placeholder="Название новой доски">
@@ -647,12 +707,42 @@ function renderBoardList(){
   const el = document.getElementById('boardList');
   if(!el) return;
   el.innerHTML = boards.map(b=>`
-    <div class="field-row" style="align-items:center;margin-bottom:8px">
-      <input value="${escapeAttr(b.name)}" onchange="renameBoard('${b.id}', this.value)" style="flex:2;padding:8px;border:1px solid var(--line);border-radius:7px">
-      <input type="number" value="${b.price}" onchange="repriceBoard('${b.id}', this.value)" style="flex:1;padding:8px;border:1px solid var(--line);border-radius:7px">
-      <button onclick="removeBoard('${b.id}')" style="border:none;background:none;color:var(--warn);cursor:pointer;font-size:13px">Удалить</button>
+    <div class="board-item" data-id="${b.id}">
+      <span class="drag-handle" title="Перетащи, чтобы поменять порядок">⠿</span>
+      <input class="bi-name" value="${escapeAttr(b.name)}" onchange="renameBoard('${b.id}', this.value)">
+      <input class="bi-price" type="number" value="${b.price}" onchange="repriceBoard('${b.id}', this.value)">
+      <button class="bi-del" onclick="removeBoard('${b.id}')" title="Удалить доску">✕</button>
     </div>
   `).join('') || '<div style="color:var(--muted);font-size:13px">Нет досок</div>';
+  el.querySelectorAll('.drag-handle').forEach(h=>h.addEventListener('pointerdown', startBoardDrag));
+}
+function startBoardDrag(e){
+  e.preventDefault();
+  const item = e.target.closest('.board-item');
+  const list = item.parentElement;
+  item.classList.add('dragging');
+  const move = ev=>{
+    const others = [...list.querySelectorAll('.board-item:not(.dragging)')];
+    const after = others.find(it=>{
+      const r = it.getBoundingClientRect();
+      return ev.clientY < r.top + r.height/2;
+    });
+    if(after) list.insertBefore(item, after);
+    else list.appendChild(item);
+  };
+  const up = async ()=>{
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    document.removeEventListener('pointercancel', up);
+    item.classList.remove('dragging');
+    const order = [...list.querySelectorAll('.board-item')].map(d=>d.dataset.id);
+    boards.sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id));
+    await saveBoards();
+    render(); // сетка под модалкой обновляется сразу
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+  document.addEventListener('pointercancel', up);
 }
 async function addBoard(){
   const name = document.getElementById('newBoardName').value.trim();
@@ -818,6 +908,40 @@ async function seedWeekIfNeeded(){
   await store.set(SEED_FLAG, 'done');
   render();
 }
+
+// ---- автообновление ----
+// Подтягивает изменения с сервера (другая вкладка/устройство) и перерисовывает,
+// заодно двигается линия «сейчас». Открытую модалку не трогаем, скролл сохраняется в render().
+async function refreshFromServer(){
+  if(!IS_HTTP) return;
+  try{
+    const [b, bk, ex] = await Promise.all([
+      store.get(STORAGE_KEY), store.get(BOOKINGS_KEY), store.get(EXPENSES_KEY)
+    ]);
+    if(b && b !== JSON.stringify(boards)) boards = JSON.parse(b);
+    if(bk){
+      const migrated = migrateBookings(JSON.parse(bk));
+      if(JSON.stringify(migrated.list) !== JSON.stringify(bookings)) bookings = migrated.list;
+    }
+    if(ex && ex !== JSON.stringify(expenses)) expenses = JSON.parse(ex);
+  }catch(e){ /* сервер недоступен — покажем то, что есть */ }
+}
+async function autoRefresh(){
+  if(document.querySelector('.overlay')) return;
+  await refreshFromServer();
+  render();
+}
+setInterval(autoRefresh, 60000);
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible') autoRefresh();
+});
+
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape'){
+    const overlays = document.querySelectorAll('.overlay');
+    if(overlays.length) overlays[overlays.length-1].remove();
+  }
+});
 
 loadData().then(seedWeekIfNeeded);
 loadExpenses();
