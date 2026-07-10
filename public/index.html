@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Расписание досок</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
@@ -23,6 +23,7 @@
   --font-display:'Space Grotesk',sans-serif;
   --font-body:'Inter',sans-serif;
   --font-mono:'IBM Plex Mono',monospace;
+  --labelw:118px;
 }
 *{box-sizing:border-box;}
 body{
@@ -31,6 +32,7 @@ body{
   color:var(--ink);
   font-family:var(--font-body);
   -webkit-font-smoothing:antialiased;
+  touch-action:manipulation;
 }
 #app{max-width:1200px;margin:0 auto;padding:14px 14px 40px;}
 
@@ -84,11 +86,11 @@ h1{
 .board{
   background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
 }
-.scrollwrap{overflow-x:auto;}
+.scrollwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .grid{position:relative;min-width:100%;}
 
 .daylabels{display:flex;position:sticky;top:0;background:var(--panel);z-index:3;border-bottom:1px solid var(--line);}
-.rowlabel-spacer{width:118px;flex:none;border-right:1px solid var(--line);background:var(--panel);position:sticky;left:0;z-index:4;}
+.rowlabel-spacer{width:var(--labelw);flex:none;border-right:1px solid var(--line);background:var(--panel);position:sticky;left:0;z-index:4;}
 .daycol{
   flex:none;text-align:center;padding:8px 0 7px;font-family:var(--font-mono);font-size:11px;
   color:var(--muted);border-right:1px dashed var(--line);
@@ -100,7 +102,7 @@ h1{
 .row{display:flex;border-bottom:1px solid var(--line);}
 .row:last-child{border-bottom:none;}
 .rowlabel{
-  width:118px;flex:none;padding:14px 10px;border-right:1px solid var(--line);
+  width:var(--labelw);flex:none;padding:14px 10px;border-right:1px solid var(--line);
   background:var(--panel);position:sticky;left:0;z-index:2;
   display:flex;flex-direction:column;gap:4px;
 }
@@ -218,6 +220,38 @@ h1{
 .expense-form input[type=text]{flex:2;min-width:120px;}
 .expense-form input[type=number]{flex:1;min-width:80px;}
 .expense-form input[type=date]{flex:1;min-width:120px;}
+
+/* ---- мобильная версия ---- */
+.fab{display:none;}
+@media(max-width:640px){
+  #app{padding:10px 8px calc(84px + env(safe-area-inset-bottom));}
+  h1{font-size:16.5px;}
+  .sub{font-size:11px;}
+  .topbar{margin-bottom:10px;}
+  .topbar .btn-primary{display:none;} /* добавление — через плавающую кнопку */
+  .btn{padding:8px 11px;font-size:12.5px;}
+  .nav{padding:5px 6px;}
+  .nav button{width:36px;height:36px;font-size:19px;}
+  .rowlabel{padding:10px 7px;}
+  .rowlabel .name{font-size:12px;}
+  .rowlabel .price{font-size:10px;}
+  .legend{gap:10px;padding:8px 10px;font-size:10.5px;}
+  .legend .hint{display:none;}
+  /* 16px — чтобы iOS не зумил страницу при фокусе на поле */
+  .field input,.field select,
+  .addboard-inline input,
+  .board-item .bi-name,.board-item .bi-price,
+  .expense-form input{font-size:16px;}
+  .modal{padding:18px 16px calc(18px + env(safe-area-inset-bottom));}
+  .fab{
+    display:flex;align-items:center;justify-content:center;
+    position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));
+    width:58px;height:58px;border-radius:50%;border:none;
+    background:var(--buoy);color:#fff;font-size:30px;line-height:1;font-weight:400;
+    box-shadow:0 4px 14px rgba(226,112,58,.45);cursor:pointer;z-index:40;
+  }
+  .fab:active{transform:scale(.93);}
+}
 </style>
 </head>
 <body>
@@ -251,6 +285,23 @@ function xToHour(px){ // час 0..24 по px внутри дня
     ? px / NIGHT_W * NIGHT_END
     : NIGHT_END + (px - NIGHT_W) / DAY_W * (24 - NIGHT_END);
 }
+
+// Адаптив: на телефоне окно 3 дня и узкая колонка досок, на десктопе — неделя.
+let labelW = 118;
+function calcResponsive(){
+  const mobile = window.matchMedia('(max-width: 640px)').matches;
+  const nextDays = mobile ? 3 : 7;
+  const changed = nextDays !== visibleDays;
+  visibleDays = nextDays;
+  labelW = mobile ? 84 : 118;
+  document.documentElement.style.setProperty('--labelw', labelW+'px');
+  return changed;
+}
+let resizeTimer = null;
+window.addEventListener('resize', ()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(()=>{ if(calcResponsive()) render(); }, 150);
+});
 
 let boards = [];
 let bookings = [];
@@ -408,15 +459,15 @@ function render(){
 
     <div class="board">
       <div class="scrollwrap">
-        <div class="grid" style="width:${118+totalWidth}px">
-          <div class="daylabels" style="width:${118+totalWidth}px">
+        <div class="grid" style="width:${labelW+totalWidth}px">
+          <div class="daylabels" style="width:${labelW+totalWidth}px">
             <div class="rowlabel-spacer"></div>
             ${days.map(d=>`
               <div class="daycol ${isSameDay(d,new Date())?'today':''}" style="width:${PX_PER_DAY}px">
                 ${fmtWeekday(d)}<b>${fmtDate(d)}</b>
               </div>`).join('')}
           </div>
-          <div class="hourrow" style="width:${118+totalWidth}px">
+          <div class="hourrow" style="width:${labelW+totalWidth}px">
             <div class="rowlabel-spacer"></div>
             ${days.map(()=>`
               <div class="hourday" style="width:${PX_PER_DAY}px">
@@ -446,11 +497,12 @@ function render(){
         <span><span class="dot" style="background:#D7E9E3;border-left:3px solid #2C7A6E"></span><span class="dot" style="background:#DCE6F5;border-left:3px solid #4A6FB5"></span><span class="dot" style="background:#F7E3D3;border-left:3px solid #C0703A"></span>каждая бронь — своим цветом (×N — бронь на несколько досок)</span>
         <span><span class="dot" style="background:var(--warn)"></span>пересечение</span>
         <span><span class="dot" style="background:var(--buoy)"></span>сейчас</span>
-        <span>пунктирный край = бронь продолжается за окном</span>
-        <span>🌙 = ночь 00–06 сжата, чтобы не мешала</span>
-        <span>клик по пустому слоту = новая бронь с этого часа</span>
+        <span class="hint">пунктирный край = бронь продолжается за окном</span>
+        <span class="hint">🌙 = ночь 00–06 сжата, чтобы не мешала</span>
+        <span class="hint">клик/тап по пустому слоту = новая бронь с этого часа</span>
       </div>
     </div>
+    <button class="fab" onclick="openAddModal()" title="Новая бронь">+</button>
   `;
   const sw = app.querySelector('.scrollwrap');
   if(sw) sw.scrollLeft = prevScroll;
@@ -972,6 +1024,7 @@ document.addEventListener('keydown', e=>{
   }
 });
 
+calcResponsive(); // до первого render()
 loadData().then(seedWeekIfNeeded);
 loadExpenses();
 </script>
